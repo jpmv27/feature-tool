@@ -491,7 +491,10 @@ class ResetSubcommand(): # pylint: disable=no-self-use
 
         for path in data.projects(data.active_feature()):
             project = manifest.projects()[path]
-            project.CheckoutBranch(project.revisionExpr)
+            branch = project.dest_branch
+            if not branch:
+                branch = project.revisionExpr
+            project.CheckoutBranch(branch)
 
 
 class SelectSubcommand(): # pylint: disable=no-self-use
