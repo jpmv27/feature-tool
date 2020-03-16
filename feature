@@ -60,7 +60,7 @@ class Repo():
             print('Could not find repo directory')
             sys.exit(1)
 
-        sys.path.append(os.path.join(self.path, 'repo'))
+        sys.path.insert(0, os.path.join(self.path, 'repo'))
 
     def manifest(self):
         """ Get repo manifest """
