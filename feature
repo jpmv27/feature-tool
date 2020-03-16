@@ -28,6 +28,19 @@ def locate_repo():
     return repo
 
 
+def print_checkout_result(project, branch, result):
+    """ Interpret the result of a check-out operation """
+
+    if result is None:
+        print('Branch', branch, 'not found in', project)
+        return
+
+    if result:
+        print('Branch', branch, 'checked-out in', project)
+    else:
+        print('Failed to check-out branch', branch, 'in', project)
+
+
 class FeatureLock(): # pylint: disable=too-few-public-methods
     """ Manage the feature lock file """
 
@@ -381,9 +394,11 @@ class AddSubcommand(): # pylint: disable=no-self-use
             branch = data.default_branch(args.feature)
 
         if not adopt:
-            project.StartBranch(branch)
+            print_checkout_result(normalized_path, branch, \
+                    project.StartBranch(branch))
         else:
-            project.CheckoutBranch(branch)
+            print_checkout_result(normalized_path, branch, \
+                    project.CheckoutBranch(branch))
 
 
 class CheckoutSubcommand(): # pylint: disable=no-self-use
@@ -414,7 +429,7 @@ class CheckoutSubcommand(): # pylint: disable=no-self-use
         for path in data.projects(args.feature):
             branch = data.project_branch(args.feature, path)
             project = manifest.projects()[path]
-            project.CheckoutBranch(branch)
+            print_checkout_result(path, branch, project.CheckoutBranch(branch))
 
 
 class CreateSubcommand(): # pylint: disable=no-self-use
@@ -494,7 +509,7 @@ class ResetSubcommand(): # pylint: disable=no-self-use
             branch = project.dest_branch
             if not branch:
                 branch = project.revisionExpr
-            project.CheckoutBranch(branch)
+            print_checkout_result(path, branch, project.CheckoutBranch(branch))
 
 
 class SelectSubcommand(): # pylint: disable=no-self-use
