@@ -559,6 +559,28 @@ class ShowSubcommand(): # pylint: disable=no-self-use
         data.list_projects(args.feature)
 
 
+class StatusSubcommand(): # pylint: disable=no-self-use
+    """ Show the status of each project """
+
+    def add_parser(self, subparsers):
+        """ Add sub-parser for the command """
+
+        parser = subparsers.add_parser( \
+                'status', \
+                help='show the status of each project' \
+            )
+        parser.set_defaults(func=StatusSubcommand.run)
+
+    def run(self, _, data, repo):
+        """ Execute the command """
+
+        manifest = repo.manifest()
+
+        for path in data.projects(data.active_feature()):
+            project = manifest.projects()[path]
+            project.PrintWorkTreeStatus()
+
+
 class FeatureCommand(): # pylint: disable=too-few-public-methods
     """ Implements feature commands """
 
@@ -570,7 +592,8 @@ class FeatureCommand(): # pylint: disable=too-few-public-methods
                 ListSubcommand(), \
                 ResetSubcommand(), \
                 SelectSubcommand(), \
-                ShowSubcommand() \
+                ShowSubcommand(), \
+                StatusSubcommand() \
             ]
 
         self.parser = argparse.ArgumentParser()
