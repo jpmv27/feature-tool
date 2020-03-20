@@ -578,8 +578,9 @@ class StatusSubcommand(): # pylint: disable=no-self-use
 
         # Old versions of repo are not compatible with Python 3
         # and PrintWorkTreeStatus throws an exception sometimes
-        cp = subprocess.run("repo version", shell=True, stdout=PIPE)
-        if cp.stdout.find(b'repo version v2') != -1:
+        completed = subprocess.run('repo version', shell=True, check=True, \
+                stdout=PIPE)
+        if completed.stdout.find(b'repo version v1') == -1:
             manifest = repo.manifest()
 
             for path in data.projects(data.active_feature()):
@@ -591,7 +592,7 @@ class StatusSubcommand(): # pylint: disable=no-self-use
                     'feature_status_python2')
             command = [python2_script] + \
                     list(data.projects(data.active_feature()))
-            subprocess.run(command)
+            subprocess.run(command, check=True)
 
 
 class FeatureCommand(): # pylint: disable=too-few-public-methods
