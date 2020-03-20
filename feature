@@ -7,6 +7,8 @@ import importlib
 import json
 import os
 import os.path
+import subprocess
+from subprocess import PIPE
 import sys
 
 
@@ -574,11 +576,22 @@ class StatusSubcommand(): # pylint: disable=no-self-use
     def run(self, _, data, repo):
         """ Execute the command """
 
-        manifest = repo.manifest()
+        # Old versions of repo are not compatible with Python 3
+        # and PrintWorkTreeStatus throws an exception sometimes
+        cp = subprocess.run("repo version", shell=True, stdout=PIPE)
+        if cp.stdout.find(b'repo version v2') != -1:
+            manifest = repo.manifest()
 
-        for path in data.projects(data.active_feature()):
-            project = manifest.projects()[path]
-            project.PrintWorkTreeStatus()
+            for path in data.projects(data.active_feature()):
+                project = manifest.projects()[path]
+                project.PrintWorkTreeStatus()
+        else:
+            python2_script = os.path.join( \
+                    os.path.dirname(os.path.abspath(__file__)), \
+                    'feature_status_python2')
+            command = [python2_script] + \
+                    list(data.projects(data.active_feature()))
+            subprocess.run(command)
 
 
 class FeatureCommand(): # pylint: disable=too-few-public-methods

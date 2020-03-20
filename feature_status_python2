@@ -1,0 +1,91 @@
+#!/usr/bin/env python2
+
+""" Implement feature status command for old versions of repo """
+
+import argparse
+import errno
+import importlib
+import json
+import os
+import os.path
+import sys
+
+
+def locate_repo():
+    """ Look for a repo directory, starting at the current directory  """
+
+    curdir = os.getcwd()
+    repo = None
+
+    olddir = None
+    while curdir != '/'  and curdir != olddir  and not repo:
+        repo = os.path.join(curdir, '.repo')
+
+        if not os.path.isdir(repo):
+            repo = None
+            olddir = curdir
+            curdir = os.path.dirname(curdir)
+
+    return repo
+
+
+class Repo(object):
+    """ The repo """
+
+    def __init__(self):
+        self.path = locate_repo()
+
+        if not self.path:
+            print 'Could not find repo directory'
+            sys.exit(1)
+
+        sys.path.insert(0, os.path.join(self.path, 'repo'))
+
+    def manifest(self):
+        """ Get repo manifest """
+
+        return ManifestData(self.path)
+
+    def normalize_path(self, path):
+        """ Check that a path is located in the repo soure tree and
+            make it relative to the root of the source tree         """
+
+        full_path = os.path.abspath(path)
+
+        if os.path.commonprefix([full_path, self.source_dir()]) != \
+                self.source_dir():
+            return None
+
+        return os.path.relpath(full_path, self.source_dir())
+
+    def source_dir(self):
+        """ Get top of source tree """
+
+        return os.path.dirname(self.path)
+
+
+class ManifestData(object): # pylint: disable=too-few-public-methods
+    """ Access information from the repo manifest """
+
+    def __init__(self, path):
+        module = importlib.import_module('manifest_xml')
+        xml_manifest_class = getattr(module, 'XmlManifest')
+        self.manifest = xml_manifest_class(path)
+
+    def projects(self):
+        """ Return a dictionary of projects keyed by project paths """
+
+        return self.manifest.paths
+
+
+def main():
+    """ Main """
+
+    repo = Repo()
+    manifest = repo.manifest()
+
+    for path in sys.argv[1:]:
+        project = manifest.projects()[path]
+        project.PrintWorkTreeStatus()
+
+main()
