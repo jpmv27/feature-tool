@@ -390,6 +390,9 @@ class AddSubcommand(): # pylint: disable=no-self-use
 
         project = manifest.projects()[normalized_path]
 
+        if args.feature and args.feature != data.active_feature():
+            data.set_active_feature(args.feature)
+
         data.add_project(args.feature, normalized_path, branch)
 
         if not branch:
