@@ -540,6 +540,49 @@ class SelectSubcommand(): # pylint: disable=no-self-use
         data.set_active_feature(args.feature)
 
 
+class ShellSubcommand(): # pylint: disable=no-self-use
+    """ Open a shell or run a shell command in each project """
+
+    def add_parser(self, subparsers):
+        """ Add sub-parser for the command """
+
+        parser = subparsers.add_parser( \
+                'shell', \
+                help='open a shell or run a shell command in each project' \
+            )
+        parser.add_argument( \
+                '-c', \
+                '--command', \
+                type=str, \
+                nargs='*', \
+                help='command to run (default is to open a shell)' \
+            )
+        parser.set_defaults(func=ShellSubcommand.run)
+
+    def run(self, args, data, _):
+        """ Execute the command """
+
+        repo = locate_repo()
+        if not repo:
+            print('Could not find repo directory')
+            sys.exit(1)
+
+        cwd = os.getcwd()
+        top = os.path.dirname(repo)
+        shell = os.environ['SHELL']
+
+        for path in data.projects(data.active_feature()):
+            print('Project:', path)
+            os.chdir(os.path.join(top, path))
+            if args.command:
+                subprocess.run(' '.join(args.command), shell=True, check=False)
+                print()
+            else:
+                subprocess.run(shell, shell=False, check=False)
+
+        os.chdir(cwd)
+        print('Done')
+
 class ShowSubcommand(): # pylint: disable=no-self-use
     """ List the projects of a feature """
 
@@ -609,6 +652,7 @@ class FeatureCommand(): # pylint: disable=too-few-public-methods
                 ListSubcommand(), \
                 ResetSubcommand(), \
                 SelectSubcommand(), \
+                ShellSubcommand(), \
                 ShowSubcommand(), \
                 StatusSubcommand() \
             ]
