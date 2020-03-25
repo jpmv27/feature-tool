@@ -636,20 +636,23 @@ class ShellSubcommand(): # pylint: disable=no-self-use
             print('Could not find repo directory')
             sys.exit(1)
 
-        cwd = os.getcwd()
         top = os.path.dirname(repo)
         shell = os.environ['SHELL']
 
         for path in data.projects(data.active_feature()):
             print('Project:', path)
-            os.chdir(os.path.join(top, path))
             if args.command:
-                subprocess.run(' '.join(args.command), shell=True, check=False)
+                subprocess.run(' '.join(args.command), \
+                        shell=True, \
+                        cwd=os.path.join(top, path), \
+                        check=False)
                 print()
             else:
-                subprocess.run(shell, shell=False, check=False)
+                subprocess.run(shell, \
+                        shell=False, \
+                        cwd=os.path.join(top, path), \
+                        check=False)
 
-        os.chdir(cwd)
         print('Done')
 
 class ShowSubcommand(): # pylint: disable=no-self-use
