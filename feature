@@ -30,6 +30,19 @@ def locate_repo():
     return repo
 
 
+def print_abandon_result(project, branch, result):
+    """ Interpret the result of an abandon operation """
+
+    if result is None:
+        print('Branch', branch, 'not found in', project)
+        return
+
+    if result:
+        print('Branch', branch, 'abandoned in', project)
+    else:
+        print('Failed to abandon branch', branch, 'in', project)
+
+
 def print_checkout_result(project, branch, result):
     """ Interpret the result of a check-out operation """
 
@@ -319,6 +332,14 @@ class FeatureData():
 
         return self.feature_data['features'][feature]['projects'].keys()
 
+    def remove_project(self, feature, path):
+        """ Remove a project from the specified feature """
+
+        self._validate_feature(feature, must_exist=True)
+        self._validate_project(feature, path, must_exist=True)
+
+        del self.feature_data['features'][feature]['projects'][path]
+
     def set_active_feature(self, feature):
         """ Set the specified feature as the active feature """
 
@@ -492,6 +513,54 @@ class ListSubcommand(): # pylint: disable=no-self-use
         data.list_features()
 
 
+class RemoveSubcommand(): # pylint: disable=no-self-use
+    """ Remove a project from a feature """
+
+    def add_parser(self, subparsers):
+        """ Add sub-parser for the command """
+
+        parser = subparsers.add_parser( \
+                'remove', \
+                help='remove a project from a feature' \
+            )
+        parser.add_argument( \
+                'path', \
+                type=str, \
+                help='project path' \
+            )
+        parser.add_argument( \
+                '-d', \
+                '--delete-branch', \
+                action='store_true', \
+                help='delete the feature branch from the project' \
+            )
+        parser.set_defaults(func=RemoveSubcommand.run)
+
+    def run(self, args, data, repo):
+        """ Execute the command """
+
+        manifest = repo.manifest()
+
+        normalized_path = repo.normalize_path(args.path)
+        if not normalized_path:
+            print('Path', args.path, 'is not part of the source tree')
+            sys.exit(1)
+
+        if normalized_path not in manifest.projects():
+            print('Path', args.path, 'is not a valid project path')
+            sys.exit(1)
+
+        project = manifest.projects()[normalized_path]
+        feature = data.active_feature()
+
+        if args.delete_branch:
+            branch = data.project_branch(feature, normalized_path)
+            print_abandon_result(normalized_path, branch, \
+                    project.AbandonBranch(branch))
+
+        data.remove_project(feature, normalized_path)
+
+
 class ResetSubcommand(): # pylint: disable=no-self-use
     """ Reset project branches to manifest default """
 
@@ -650,6 +719,7 @@ class FeatureCommand(): # pylint: disable=too-few-public-methods
                 CheckoutSubcommand(), \
                 CreateSubcommand(), \
                 ListSubcommand(), \
+                RemoveSubcommand(), \
                 ResetSubcommand(), \
                 SelectSubcommand(), \
                 ShellSubcommand(), \
