@@ -234,6 +234,13 @@ class FeatureData():
                 'branch': branch \
             }
 
+    def clear_active_feature(self):
+        """ Clear the active feature"""
+
+        self.feature_data['active_feature'] = None
+        print('Active feature cleared')
+
+
     def create_feature(self, name, default_branch):
         """ Create a feature if it doesn't already exist """
 
@@ -456,6 +463,24 @@ class CheckoutSubcommand(): # pylint: disable=no-self-use
             branch = data.project_branch(args.feature, path)
             project = manifest.projects()[path]
             print_checkout_result(path, branch, project.CheckoutBranch(branch))
+
+
+class ClearSubcommand(): # pylint: disable=no-self-use
+    """ Clear the active feature """
+
+    def add_parser(self, subparsers):
+        """ Add sub-parser for the command """
+
+        parser = subparsers.add_parser( \
+                'clear', \
+                help='clear the active feature' \
+            )
+        parser.set_defaults(func=ClearSubcommand.run)
+
+    def run(self, _1, data, _2):
+        """ Execute the command """
+
+        data.clear_active_feature()
 
 
 class CreateSubcommand(): # pylint: disable=no-self-use
@@ -720,6 +745,7 @@ class FeatureCommand(): # pylint: disable=too-few-public-methods
         self.commands = [ \
                 AddSubcommand(), \
                 CheckoutSubcommand(), \
+                ClearSubcommand(), \
                 CreateSubcommand(), \
                 ListSubcommand(), \
                 RemoveSubcommand(), \
