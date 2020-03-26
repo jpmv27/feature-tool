@@ -30,6 +30,21 @@ def locate_repo():
     return repo
 
 
+def normalize_and_validate_path(path, repo, manifest):
+    """ Normalize path and check that it is a valid project """
+
+    normalized_path = repo.normalize_path(path)
+    if not normalized_path:
+        print('Path', path, 'is not part of the source tree')
+        sys.exit(1)
+
+    if normalized_path not in manifest.projects():
+        print('Path', path, 'is not a valid project path')
+        sys.exit(1)
+
+    return normalized_path
+
+
 def print_abandon_result(project, branch, result):
     """ Interpret the result of an abandon operation """
 
@@ -193,25 +208,24 @@ class FeatureData():
                     print('There is no active feature')
                     sys.exit(1)
             else:
-                print('Internal error: feature is falsy and may_default_to_active is False')
-                sys.exit(2)
+                raise RuntimeError('Feature is falsy and may_default_to_active is False')
 
-        if must_exist and feature not in self.features():
+        if must_exist and feature not in self.feature_list():
             print('Feature', feature, 'does not exist')
             sys.exit(1)
 
-        if must_not_exist and feature in self.features():
+        if must_not_exist and feature in self.feature_list():
             print('Feature', feature, 'already exists')
             sys.exit(1)
 
         return feature
 
     def _validate_project(self, feature, path, must_exist=False, must_not_exist=False):
-        if must_exist and path not in self.projects(feature):
+        if must_exist and path not in self.project_list(feature):
             print('Project', path, 'is not part of feature', feature)
             sys.exit(1)
 
-        if must_not_exist and path in self.projects(feature):
+        if must_not_exist and path in self.project_list(feature):
             print('Project', path, 'is already part of feature', feature)
             sys.exit(1)
 
@@ -221,6 +235,17 @@ class FeatureData():
         """ The key of the active feature """
 
         return self.feature_data['active_feature']
+
+    def active_feature_mandatory(self):
+        """ The key of the active feature """
+
+        feature = self.active_feature()
+
+        if not feature:
+            print('There is no active feature')
+            sys.exit(1)
+
+        return feature
 
     def add_project(self, feature, path, branch):
         """ Add a project to the specified feature if it doesn't already exist """
@@ -254,6 +279,13 @@ class FeatureData():
                 'default_branch': default_branch \
             }
 
+    def delete_feature(self, name):
+        """ Delete a feature """
+
+        name = self._validate_feature(name, must_exist=True)
+
+        del self.feature_data['features'][name]
+
     def default_branch(self, feature):
         """ Return the default branch for the specified feature """
 
@@ -270,7 +302,7 @@ class FeatureData():
 
         return self.feature_data['features'][feature]
 
-    def features(self):
+    def feature_list(self):
         """ Return a list of feature names """
 
         return self.feature_data['features'].keys()
@@ -278,7 +310,7 @@ class FeatureData():
     def list_features(self):
         """ List all the features """
 
-        features = self.features()
+        features = self.feature_list()
         if features:
             for key in features:
                 if key == self.active_feature():
@@ -298,9 +330,9 @@ class FeatureData():
         feature = self._validate_feature(feature, may_default_to_active=True, \
                 must_exist=True)
 
-        projects = self.projects(feature)
+        projects = self.project_list(feature)
         if projects:
-            for key in self.projects(feature):
+            for key in projects:
                 project = self.project(feature, key)
                 branch = project['branch']
                 if not branch:
@@ -331,7 +363,7 @@ class FeatureData():
 
         return branch
 
-    def projects(self, feature):
+    def project_list(self, feature):
         """ Return a list of projects in the specified feature """
 
         feature = self._validate_feature(feature, may_default_to_active=True, \
@@ -342,7 +374,8 @@ class FeatureData():
     def remove_project(self, feature, path):
         """ Remove a project from the specified feature """
 
-        self._validate_feature(feature, must_exist=True)
+        feature = self._validate_feature(feature, may_default_to_active=True, \
+                must_exist=True)
         self._validate_project(feature, path, must_exist=True)
 
         del self.feature_data['features'][feature]['projects'][path]
@@ -407,14 +440,8 @@ class AddSubcommand(): # pylint: disable=no-self-use
 
         manifest = repo.manifest()
 
-        normalized_path = repo.normalize_path(args.path)
-        if not normalized_path:
-            print('Path', args.path, 'is not part of the source tree')
-            sys.exit(1)
-
-        if normalized_path not in manifest.projects():
-            print('Path', args.path, 'is not a valid project path')
-            sys.exit(1)
+        normalized_path = normalize_and_validate_path( \
+                args.path, repo, manifest)
 
         project = manifest.projects()[normalized_path]
 
@@ -459,7 +486,7 @@ class CheckoutSubcommand(): # pylint: disable=no-self-use
 
         manifest = repo.manifest()
 
-        for path in data.projects(args.feature):
+        for path in data.project_list(args.feature):
             branch = data.project_branch(args.feature, path)
             project = manifest.projects()[path]
             print_checkout_result(path, branch, project.CheckoutBranch(branch))
@@ -554,6 +581,11 @@ class RemoveSubcommand(): # pylint: disable=no-self-use
                 help='project path' \
             )
         parser.add_argument( \
+                '-f', \
+                '--feature', \
+                help='feature name (default is active feature)' \
+            )
+        parser.add_argument( \
                 '-d', \
                 '--delete-branch', \
                 action='store_true', \
@@ -566,35 +598,27 @@ class RemoveSubcommand(): # pylint: disable=no-self-use
 
         manifest = repo.manifest()
 
-        normalized_path = repo.normalize_path(args.path)
-        if not normalized_path:
-            print('Path', args.path, 'is not part of the source tree')
-            sys.exit(1)
-
-        if normalized_path not in manifest.projects():
-            print('Path', args.path, 'is not a valid project path')
-            sys.exit(1)
-
-        project = manifest.projects()[normalized_path]
-        feature = data.active_feature()
+        normalized_path = normalize_and_validate_path( \
+                args.path, repo, manifest)
 
         if args.delete_branch:
-            branch = data.project_branch(feature, normalized_path)
+            branch = data.project_branch(args.feature, normalized_path)
+            project = manifest.projects()[normalized_path]
             print_abandon_result(normalized_path, branch, \
                     project.AbandonBranch(branch))
 
-        data.remove_project(feature, normalized_path)
+        data.remove_project(args.feature, normalized_path)
 
 
 class ResetSubcommand(): # pylint: disable=no-self-use
-    """ Reset project branches to manifest default """
+    """ Reset project branches of the active feature to manifest default """
 
     def add_parser(self, subparsers):
         """ Add sub-parser for the command """
 
         parser = subparsers.add_parser( \
                 'reset', \
-                help='reset project branches to manifest default' \
+                help='reset project branches of the active feature to manifest default' \
             )
         parser.set_defaults(func=ResetSubcommand.run)
 
@@ -603,7 +627,9 @@ class ResetSubcommand(): # pylint: disable=no-self-use
 
         manifest = repo.manifest()
 
-        for path in data.projects(data.active_feature()):
+        active_feature = data.active_feature_mandatory()
+
+        for path in data.project_list(active_feature):
             project = manifest.projects()[path]
             branch = project.dest_branch
             if not branch:
@@ -635,14 +661,15 @@ class SelectSubcommand(): # pylint: disable=no-self-use
 
 
 class ShellSubcommand(): # pylint: disable=no-self-use
-    """ Open a shell or run a shell command in each project """
+    """ Open a shell or run a shell command in each project of the active
+        feature                                                           """
 
     def add_parser(self, subparsers):
         """ Add sub-parser for the command """
 
         parser = subparsers.add_parser( \
                 'shell', \
-                help='open a shell or run a shell command in each project' \
+                help='open a shell or run a shell command in each project of the active feature' \
             )
         parser.add_argument( \
                 '-c', \
@@ -664,7 +691,7 @@ class ShellSubcommand(): # pylint: disable=no-self-use
         top = os.path.dirname(repo)
         shell = os.environ['SHELL']
 
-        for path in data.projects(data.active_feature()):
+        for path in data.project_list(data.active_feature()):
             print('Project:', path)
             if args.command:
                 subprocess.run(' '.join(args.command), \
@@ -693,8 +720,7 @@ class ShowSubcommand(): # pylint: disable=no-self-use
         parser.add_argument( \
                 '-f', \
                 '--feature', \
-                type=str, \
-                help='feature to list' \
+                help='feature to list (default is active feature)' \
             )
         parser.set_defaults(func=ShowSubcommand.run)
 
@@ -705,19 +731,21 @@ class ShowSubcommand(): # pylint: disable=no-self-use
 
 
 class StatusSubcommand(): # pylint: disable=no-self-use
-    """ Show the status of each project """
+    """ Show the status of each project in the active feature """
 
     def add_parser(self, subparsers):
         """ Add sub-parser for the command """
 
         parser = subparsers.add_parser( \
                 'status', \
-                help='show the status of each project' \
+                help='show the status of each project in the active feature' \
             )
         parser.set_defaults(func=StatusSubcommand.run)
 
     def run(self, _, data, repo):
         """ Execute the command """
+
+        active_feature = data.active_feature_mandatory()
 
         # Old versions of repo are not compatible with Python 3
         # and PrintWorkTreeStatus throws an exception sometimes
@@ -726,7 +754,7 @@ class StatusSubcommand(): # pylint: disable=no-self-use
         if completed.stdout.find(b'repo version v1') == -1:
             manifest = repo.manifest()
 
-            for path in data.projects(data.active_feature()):
+            for path in data.project_list(active_feature):
                 project = manifest.projects()[path]
                 project.PrintWorkTreeStatus()
         else:
@@ -734,7 +762,7 @@ class StatusSubcommand(): # pylint: disable=no-self-use
                     os.path.dirname(os.path.abspath(__file__)), \
                     'feature_status_python2')
             command = [python2_script] + \
-                    list(data.projects(data.active_feature()))
+                    list(data.project_list(active_feature))
             subprocess.run(command, check=True)
 
 
