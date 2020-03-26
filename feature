@@ -547,6 +547,48 @@ class CreateSubcommand(): # pylint: disable=no-self-use
             data.set_active_feature(args.name)
 
 
+class DeleteSubcommand(): # pylint: disable=no-self-use
+    """ Delete a feature """
+
+    def add_parser(self, subparsers):
+        """ Add sub-parser for the command """
+
+        parser = subparsers.add_parser( \
+                'delete', \
+                help='delete a feature' \
+            )
+        parser.add_argument( \
+                'feature', \
+                type=str, \
+                help='feature to delete' \
+            )
+        parser.add_argument( \
+                '-d', \
+                '--delete-branches', \
+                action='store_true', \
+                help='delete the feature branch from all the projects' \
+            )
+        parser.set_defaults(func=DeleteSubcommand.run)
+
+    def run(self, args, data, repo):
+        """ Execute the command """
+
+        manifest = repo.manifest()
+
+        if args.feature == data.active_feature():
+            print('Cannot delete the active feature')
+            sys.exit(1)
+
+        if args.delete_branches:
+            for path in data.project_list(args.feature):
+                project = manifest.projects()[path]
+                branch = data.project_branch(args.feature, path)
+                print_abandon_result(path, branch, \
+                        project.AbandonBranch(branch))
+
+        data.delete_feature(args.feature)
+
+
 class ListSubcommand(): # pylint: disable=no-self-use
     """ List features """
 
@@ -775,6 +817,7 @@ class FeatureCommand(): # pylint: disable=too-few-public-methods
                 CheckoutSubcommand(), \
                 ClearSubcommand(), \
                 CreateSubcommand(), \
+                DeleteSubcommand(), \
                 ListSubcommand(), \
                 RemoveSubcommand(), \
                 ResetSubcommand(), \
