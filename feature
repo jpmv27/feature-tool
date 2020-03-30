@@ -332,6 +332,8 @@ class FeatureData():
 
         projects = self.project_list(feature)
         if projects:
+            print('* Feature ', feature, '*')
+
             for key in projects:
                 project = self.project(feature, key)
                 branch = project['branch']
@@ -717,7 +719,7 @@ class ShellSubcommand(): # pylint: disable=no-self-use
                 '-c', \
                 '--command', \
                 type=str, \
-                nargs='*', \
+                nargs=argparse.REMAINDER, \
                 help='command to run (default is to open a shell)' \
             )
         parser.set_defaults(func=ShellSubcommand.run)
@@ -788,6 +790,8 @@ class StatusSubcommand(): # pylint: disable=no-self-use
         """ Execute the command """
 
         active_feature = data.active_feature_mandatory()
+
+        print('* Feature ', active_feature, '*')
 
         # Old versions of repo are not compatible with Python 3
         # and PrintWorkTreeStatus throws an exception sometimes
