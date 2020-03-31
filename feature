@@ -154,7 +154,7 @@ class FeatureData():
 
         try:
             self.data_file = open(self.path, 'r+t')
-            self.feature_data = json.load(self.data_file)
+            self._read_data()
         except FileNotFoundError:
             self.data_file = open(self.path, 'w+t')
             self.feature_data = {}
@@ -166,14 +166,15 @@ class FeatureData():
     def __exit__(self, exc_type, exc_val, exc_tb):
         """ Update and close the data file """
 
-        self.data_file.seek(0)
-        json.dump(self.feature_data, self.data_file, indent=4)
-        self.data_file.truncate()
+        self._save_data()
         self.data_file.close()
 
     def _init_or_upgrade_data(self):
         if 'active_feature' not in self.feature_data:
             self.feature_data['active_feature'] = None
+
+        if 'current_project' not in self.feature_data:
+            self.feature_data['current_project'] = None
 
         if 'features' not in self.feature_data:
             self.feature_data['features'] = {}
@@ -185,9 +186,6 @@ class FeatureData():
             if 'default_branch' not in feature:
                 feature['default_branch'] = name
 
-            if 'current_project' not in feature:
-                feature['current_project'] = None
-
             if 'projects' not in feature:
                 feature['projects'] = {}
 
@@ -197,6 +195,14 @@ class FeatureData():
 
                     if 'branch' not in project:
                         project['branch'] = None
+
+    def _read_data(self):
+        self.feature_data = json.load(self.data_file)
+
+    def _save_data(self):
+        self.data_file.seek(0)
+        json.dump(self.feature_data, self.data_file, indent=4)
+        self.data_file.truncate()
 
     def active_feature(self, *, must_be_defined=False):
         """ The key of the active feature """
@@ -273,15 +279,30 @@ class FeatureData():
 
         return self.feature_data['features'][feature]['projects'].keys()
 
+    def read(self):
+        """ Read data from the file """
+
+        self._read_data()
+
     def remove_project(self, feature, path):
         """ Remove a project from the specified feature """
 
         del self.feature_data['features'][feature]['projects'][path]
 
+    def save(self):
+        """ Save the data to the file """
+
+        self._save_data()
+
     def set_active_feature(self, feature):
         """ Set the specified feature as the active feature """
 
         self.feature_data['active_feature'] = feature
+
+    def set_current_project(self, project):
+        """ Set the specified project as the current project """
+
+        self.feature_data['current_project'] = project
 
     def validate_feature(self, feature, *, may_default_to_active=False, must_exist=False, \
             must_not_exist=False, must_be_active=False, must_not_be_active=False):
@@ -737,6 +758,8 @@ class ShellSubcommand(): # pylint: disable=no-self-use
         if projects:
             for path in projects:
                 print('* Project', path, '*')
+                data.set_current_project(path)
+                data.save()
                 if args.command:
                     subprocess.run(' '.join(args.command), \
                             shell=True, \
@@ -749,6 +772,7 @@ class ShellSubcommand(): # pylint: disable=no-self-use
                             cwd=os.path.join(top, path), \
                             check=False)
 
+            data.set_current_project(None)
             print('* Done *')
         else:
             print('Feature', feature, 'has no projects')
