@@ -12,6 +12,32 @@ from subprocess import PIPE
 import sys
 
 
+def interpret_abandon_result(project, branch, result):
+    """ Interpret the result of an abandon operation """
+
+    if result is None:
+        print('Branch', branch, 'not found in', project)
+        return
+
+    if result:
+        print('Branch', branch, 'abandoned in', project)
+    else:
+        print('Failed to abandon branch', branch, 'in', project)
+
+
+def interpret_checkout_result(project, branch, result):
+    """ Interpret the result of a check-out operation """
+
+    if result is None:
+        print('Branch', branch, 'not found in', project)
+        return
+
+    if result:
+        print('Branch', branch, 'checked-out in', project)
+    else:
+        print('Failed to check-out branch', branch, 'in', project)
+
+
 def locate_repo():
     """ Look for a repo directory, starting at the current directory  """
 
@@ -43,32 +69,6 @@ def normalize_and_validate_path(path, repo, manifest):
         sys.exit(1)
 
     return normalized_path
-
-
-def print_abandon_result(project, branch, result):
-    """ Interpret the result of an abandon operation """
-
-    if result is None:
-        print('Branch', branch, 'not found in', project)
-        return
-
-    if result:
-        print('Branch', branch, 'abandoned in', project)
-    else:
-        print('Failed to abandon branch', branch, 'in', project)
-
-
-def print_checkout_result(project, branch, result):
-    """ Interpret the result of a check-out operation """
-
-    if result is None:
-        print('Branch', branch, 'not found in', project)
-        return
-
-    if result:
-        print('Branch', branch, 'checked-out in', project)
-    else:
-        print('Failed to check-out branch', branch, 'in', project)
 
 
 class FeatureLock(): # pylint: disable=too-few-public-methods
@@ -456,10 +456,10 @@ class AddSubcommand(): # pylint: disable=no-self-use
             branch = data.default_branch(args.feature)
 
         if not adopt:
-            print_checkout_result(normalized_path, branch, \
+            interpret_checkout_result(normalized_path, branch, \
                     project.StartBranch(branch))
         else:
-            print_checkout_result(normalized_path, branch, \
+            interpret_checkout_result(normalized_path, branch, \
                     project.CheckoutBranch(branch))
 
 
@@ -491,7 +491,7 @@ class CheckoutSubcommand(): # pylint: disable=no-self-use
         for path in data.project_list(args.feature):
             branch = data.project_branch(args.feature, path)
             project = manifest.projects()[path]
-            print_checkout_result(path, branch, project.CheckoutBranch(branch))
+            interpret_checkout_result(path, branch, project.CheckoutBranch(branch))
 
 
 class ClearSubcommand(): # pylint: disable=no-self-use
@@ -585,7 +585,7 @@ class DeleteSubcommand(): # pylint: disable=no-self-use
             for path in data.project_list(args.feature):
                 project = manifest.projects()[path]
                 branch = data.project_branch(args.feature, path)
-                print_abandon_result(path, branch, \
+                interpret_abandon_result(path, branch, \
                         project.AbandonBranch(branch))
 
         data.delete_feature(args.feature)
@@ -648,7 +648,7 @@ class RemoveSubcommand(): # pylint: disable=no-self-use
         if args.delete_branch:
             branch = data.project_branch(args.feature, normalized_path)
             project = manifest.projects()[normalized_path]
-            print_abandon_result(normalized_path, branch, \
+            interpret_abandon_result(normalized_path, branch, \
                     project.AbandonBranch(branch))
 
         data.remove_project(args.feature, normalized_path)
@@ -678,7 +678,7 @@ class ResetSubcommand(): # pylint: disable=no-self-use
             branch = project.dest_branch
             if not branch:
                 branch = project.revisionExpr
-            print_checkout_result(path, branch, project.CheckoutBranch(branch))
+            interpret_checkout_result(path, branch, project.CheckoutBranch(branch))
 
 
 class SelectSubcommand(): # pylint: disable=no-self-use
