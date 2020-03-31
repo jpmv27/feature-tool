@@ -434,10 +434,14 @@ class CheckoutSubcommand(): # pylint: disable=no-self-use
 
         manifest = repo.manifest()
 
-        for path in data.project_list(feature):
-            branch = data.project_branch(feature, path)
-            project = manifest.projects()[path]
-            interpret_checkout_result(path, branch, project.CheckoutBranch(branch))
+        projects = data.project_list(feature)
+        if projects:
+            for path in projects:
+                branch = data.project_branch(feature, path)
+                project = manifest.projects()[path]
+                interpret_checkout_result(path, branch, project.CheckoutBranch(branch))
+        else:
+            print('Feature', feature, 'has no projects')
 
 
 class ClearSubcommand(): # pylint: disable=no-self-use
@@ -498,6 +502,8 @@ class CreateSubcommand(): # pylint: disable=no-self-use
         if args.active:
             data.set_active_feature(name)
             print('Feature', name, 'is now active')
+        else:
+            print('Feature', name, 'has been created')
 
 
 class DeleteSubcommand(): # pylint: disable=no-self-use
@@ -531,12 +537,18 @@ class DeleteSubcommand(): # pylint: disable=no-self-use
         manifest = repo.manifest()
 
         if args.delete_branches:
-            for path in data.project_list(name):
-                project = manifest.projects()[path]
-                branch = data.project_branch(name, path)
-                interpret_abandon_result(path, branch, project.AbandonBranch(branch))
+            projects = data.project_list(name)
+            if projects:
+                for path in projects:
+                    project = manifest.projects()[path]
+                    branch = data.project_branch(name, path)
+                    interpret_abandon_result(path, branch, project.AbandonBranch(branch))
+            else:
+                print('Feature', name, 'has no projects')
 
         data.delete_feature(name)
+
+        print('Feature', name, 'has been deleted')
 
 
 class ListSubcommand(): # pylint: disable=no-self-use
@@ -627,21 +639,31 @@ class ResetSubcommand(): # pylint: disable=no-self-use
                 'reset', \
                 help='reset project branches of the active feature to manifest default' \
             )
+        parser.add_argument( \
+                '-f', \
+                '--feature', \
+                help='feature name (default is active feature)' \
+            )
         parser.set_defaults(func=ResetSubcommand.run)
 
-    def run(self, _, data, repo):
+    def run(self, args, data, repo):
         """ Execute the command """
 
-        feature = data.active_feature(must_be_defined=True)
+        feature = data.validate_feature(args.feature, may_default_to_active=True, \
+                must_exist=True)[0]
 
         manifest = repo.manifest()
 
-        for path in data.project_list(feature):
-            project = manifest.projects()[path]
-            branch = project.dest_branch
-            if not branch:
-                branch = project.revisionExpr
-            interpret_checkout_result(path, branch, project.CheckoutBranch(branch))
+        projects = data.project_list(feature)
+        if projects:
+            for path in projects:
+                project = manifest.projects()[path]
+                branch = project.dest_branch
+                if not branch:
+                    branch = project.revisionExpr
+                interpret_checkout_result(path, branch, project.CheckoutBranch(branch))
+        else:
+            print('Feature', feature, 'has no projects')
 
 
 class SelectSubcommand(): # pylint: disable=no-self-use
@@ -684,6 +706,11 @@ class ShellSubcommand(): # pylint: disable=no-self-use
                 help='open a shell or run a shell command in each project of the active feature' \
             )
         parser.add_argument( \
+                '-f', \
+                '--feature', \
+                help='feature name (default is active feature)' \
+            )
+        parser.add_argument( \
                 '-c', \
                 '--command', \
                 type=str, \
@@ -695,7 +722,8 @@ class ShellSubcommand(): # pylint: disable=no-self-use
     def run(self, args, data, _):
         """ Execute the command """
 
-        feature = data.active_feature(must_be_defined=True)
+        feature = data.validate_feature(args.feature, may_default_to_active=True, \
+                must_exist=True)[0]
 
         repo = locate_repo()
         if not repo:
@@ -705,21 +733,25 @@ class ShellSubcommand(): # pylint: disable=no-self-use
         top = os.path.dirname(repo)
         shell = os.environ['SHELL']
 
-        for path in data.project_list(feature):
-            print('* Project', path, '*')
-            if args.command:
-                subprocess.run(' '.join(args.command), \
-                        shell=True, \
-                        cwd=os.path.join(top, path), \
-                        check=False)
-                print()
-            else:
-                subprocess.run(shell, \
-                        shell=False, \
-                        cwd=os.path.join(top, path), \
-                        check=False)
+        projects = data.project_list(feature)
+        if projects:
+            for path in projects:
+                print('* Project', path, '*')
+                if args.command:
+                    subprocess.run(' '.join(args.command), \
+                            shell=True, \
+                            cwd=os.path.join(top, path), \
+                            check=False)
+                    print()
+                else:
+                    subprocess.run(shell, \
+                            shell=False, \
+                            cwd=os.path.join(top, path), \
+                            check=False)
 
-        print('* Done *')
+            print('* Done *')
+        else:
+            print('Feature', feature, 'has no projects')
 
 class ShowSubcommand(): # pylint: disable=no-self-use
     """ List the projects of a feature """
@@ -769,29 +801,39 @@ class StatusSubcommand(): # pylint: disable=no-self-use
                 'status', \
                 help='show the status of each project in the active feature' \
             )
+        parser.add_argument( \
+                '-f', \
+                '--feature', \
+                help='feature to list (default is active feature)' \
+            )
         parser.set_defaults(func=StatusSubcommand.run)
 
-    def run(self, _, data, repo):
+    def run(self, args, data, repo):
         """ Execute the command """
 
-        feature = data.active_feature(must_be_defined=True)
+        feature = data.validate_feature(args.feature, may_default_to_active=True, \
+                must_exist=True)[0]
 
-        print('* Feature', feature, '*')
+        projects = data.project_list(feature)
+        if projects:
+            print('* Feature', feature, '*')
 
-        # Old versions of repo are not compatible with Python 3
-        # and PrintWorkTreeStatus throws an exception sometimes
-        completed = subprocess.run('repo version', shell=True, check=True, stdout=PIPE)
-        if completed.stdout.find(b'repo version v1') == -1:
-            manifest = repo.manifest()
+            # Old versions of repo are not compatible with Python 3
+            # and PrintWorkTreeStatus throws an exception sometimes
+            completed = subprocess.run('repo version', shell=True, check=True, stdout=PIPE)
+            if completed.stdout.find(b'repo version v1') == -1:
+                manifest = repo.manifest()
 
-            for path in data.project_list(feature):
-                project = manifest.projects()[path]
-                project.PrintWorkTreeStatus()
+                for path in projects:
+                    project = manifest.projects()[path]
+                    project.PrintWorkTreeStatus()
+            else:
+                python2_script = os.path.join( \
+                        os.path.dirname(os.path.abspath(__file__)), 'feature_status_python2')
+                command = [python2_script] + list(projects)
+                subprocess.run(command, check=True)
         else:
-            python2_script = os.path.join( \
-                    os.path.dirname(os.path.abspath(__file__)), 'feature_status_python2')
-            command = [python2_script] + list(data.project_list(feature))
-            subprocess.run(command, check=True)
+            print('Feature', feature, 'has no projects')
 
 
 class FeatureCommand(): # pylint: disable=too-few-public-methods
