@@ -381,24 +381,28 @@ class AddSubcommand(): # pylint: disable=no-self-use
                 '-a', \
                 '--adopt', \
                 metavar='BRANCH', \
+                nargs='?', \
+                const='', \
                 help='name of existing branch to adopt (if not specified, \
-                    a new branch is created)' \
+                    the default branch name is assumed)' \
             )
         parser.set_defaults(func=AddSubcommand.run)
 
     def run(self, args, data, repo):
         """ Execute the command """
 
-        if args.branch:
+        if args.branch:               # --branch BRANCH
             branch = args.branch
-            adopt = False
-        else:
-            if args.adopt:
-                branch = args.adopt
-                adopt = True
-            else:
-                branch = None
-                adopt = False
+            start = True
+        elif args.adopt:              # --adopt BRANCH
+            branch = args.adopt
+            start = False
+        elif args.adopt == '':        # --adopt
+            branch = None
+            start = False
+        else:                         # Neither
+            branch = None
+            start = True
 
         feature, is_active = data.validate_feature(args.feature, may_default_to_active=True, \
                 must_exist=True)
@@ -420,7 +424,7 @@ class AddSubcommand(): # pylint: disable=no-self-use
         if not branch:
             branch = data.default_branch(feature)
 
-        if not adopt:
+        if start:
             interpret_checkout_result(path, branch, project.StartBranch(branch))
         else:
             interpret_checkout_result(path, branch, project.CheckoutBranch(branch))
