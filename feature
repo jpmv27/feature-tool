@@ -258,7 +258,7 @@ class FeatureData():
     def feature_list(self):
         """ Return a list of feature names """
 
-        return self.feature_data['features'].keys()
+        return sorted(self.feature_data['features'].keys())
 
     def project(self, feature, project):
         """ Return data for the specified project of the specified feature """
@@ -277,7 +277,7 @@ class FeatureData():
     def project_list(self, feature):
         """ Return a list of projects in the specified feature """
 
-        return self.feature_data['features'][feature]['projects'].keys()
+        return sorted(self.feature_data['features'][feature]['projects'].keys())
 
     def read(self):
         """ Read data from the file """
